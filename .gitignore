@@ -1,3 +1,4 @@
 venv
 logfile.log
 __pycache__
+test/golfrounds.db

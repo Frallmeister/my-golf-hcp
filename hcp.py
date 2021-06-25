@@ -8,7 +8,22 @@ from models import Round, Player, Base
 engine = create_engine('sqlite:///golfrounds.db', echo=True)
 Base.metadata.create_all(engine)
 
+
+
+
+"""
+Create decorator to check if self.player is None before allowing functions to run.
+"""
+
+
+
+
+
+
 class MyGit:
+    """
+    My version of "Golfens IT-system", my own , my precious.
+    """
 
     def __init__(self, hcp=None, **kwargs):
 
