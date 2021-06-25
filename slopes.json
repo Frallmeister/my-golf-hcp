@@ -1,5 +1,6 @@
 {
     "orust": {
+        "par": 72,
         "course_rating": 71.0,
         "slope_rating": 123,
         "slope_yellow": {
