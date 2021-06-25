@@ -1,5 +1,6 @@
 import json
 from logger import log
+from definitions import BASE_DIR
 import sqlalchemy as db
 from models import Rounds, Base
 
@@ -21,7 +22,7 @@ class Player:
         """
 
         # Load slope table
-        with open("slopes.json") as f:
+        with open(BASE_DIR / "slopes.json") as f:
             slopes = json.load(f)
 
         try:
