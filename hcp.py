@@ -12,7 +12,7 @@ Base.metadata.create_all(engine)
 
 
 """
-Create decorator to check if self.player is None before allowing functions to run.
+Create @playerselected decorator to check if self.player is None before allowing functions to run.
 """
 
 
@@ -40,9 +40,10 @@ class MyGit:
 
 
     def __repr__(self):
-        return f"Hcp(hcp={self.hcp})"
+        return f"Hcp(hcp={self.hcp}, player={self.player})"
 
 
+    @staticmethod
     def get_course_info(self, course):
         with open(BASE_DIR / "slopes.json") as f:
             info = json.load(f)
@@ -59,6 +60,10 @@ class MyGit:
         """
         Get the given golf course SHCP for the player.
         """
+
+        if self.hcp is None:
+            log.error("Class instance hcp is None")
+            return None
 
         # Load slope table
         with open(BASE_DIR / "slopes.json") as f:
@@ -94,9 +99,13 @@ class MyGit:
         """
         info = self.get_course_info(course)
         shcp = self.find_shcp(course, tee=tee)
-        return 113/info['slope_rating'] * (info['par'] + shcp - (points - 36) - info['course_rating'] - pcc)
+        if shcp:
+            return 113/info['slope_rating'] * (info['par'] + shcp - (points - 36) - info['course_rating'] - pcc)
+        else:
+            return None
 
 
+    # @playerselected
     def get_hcp(self):
         """
         Reads all rounds from the database and calculates the current exact handicap
@@ -104,9 +113,10 @@ class MyGit:
         pass
 
 
+    # @playerselected
     def update_hcp(self):
         """
-        
+        Fetches the current hcp from get_hcp() and updates the player hcp in the db
         """
         pass
 
@@ -137,6 +147,7 @@ class MyGit:
                 return None
 
 
+    # @playerselected
     def log_round(self, game_type, score, tee):
         """
         1. Calculate hcp result
