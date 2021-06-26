@@ -11,25 +11,28 @@ Base.metadata.create_all(engine)
 
 class MyGit:
     """
-    My version of "Golfens IT-system", my own , my precious.
+    My version of "Golfens IT-system", my own , my precious...
     """
 
-    def __init__(self, hcp=None, **kwargs):
+    def __init__(self, **kwargs):
 
-        self.hcp = hcp
         self.player = None
 
+        # Check expected kwargs
         if kwargs:
+            keys = kwargs.keys()
+            p = Player()
+            allowed_keys = [column.key for column in p.__table__.columns]
+            del p
+            for key in keys:
+                if key not in allowed_keys:
+                    raise Exception(f"Got unexpected key word, {key}")
+            
             self.get_player(**kwargs)
-        elif hcp is not None:
-            log.info(f"Instantiate object with hcp={hcp}")
-        else:
-            log.error("Class instantiated with hcp=None and kwargs={}")
-            raise Exception("Either a handicap or a player must be specified")
 
 
     def __repr__(self):
-        return f"Hcp(hcp={self.hcp}, player={self.player})"
+        return f"MyGit(player={self.player})"
 
 
     @staticmethod
@@ -45,14 +48,10 @@ class MyGit:
         return {key: course_info[key] for key in course_info}
 
 
-    def find_shcp(self, course, tee='yellow'):
+    def find_shcp(self, course, hcp, tee='yellow'):
         """
         Get the given golf course SHCP for the player.
         """
-
-        if self.hcp is None:
-            log.error("Class instance hcp is None")
-            return None
 
         try:
             course_info = self.get_course_info(course)
@@ -61,8 +60,8 @@ class MyGit:
             log.error(f"Could not get slope table from slopes.json for course={course} and tee={tee}")
             return None
         
-        for shcp, hcp in slope.items():
-            if self.hcp >= hcp[0] and self.hcp <= hcp[1]:
+        for shcp, hcp_range in slope.items():
+            if hcp >= hcp_range[0] and hcp <= hcp_range[1]:
                 return int(shcp)
         
         # In case wrong hcp is provided in arg
@@ -77,13 +76,13 @@ class MyGit:
         return round(113/info['slope_rating'] * (score - info['course_rating'] - pcc), 1)
 
     
-    def calc_stableford_hcp(self, course, points, pcc=0, tee='yellow'):
+    def calc_stableford_hcp(self, course, hcp, points, pcc=0, tee='yellow'):
         """
         Poängbogey in swedish.
         Calculate handicatp result from a round with stableford score.
         """
         info = self.get_course_info(course)
-        shcp = self.find_shcp(course, tee=tee)
+        shcp = self.find_shcp(course, hcp, tee=tee)
         if shcp:
             return round(113/info['slope_rating'] * (info['par'] + shcp - (points - 36) - info['course_rating'] - pcc), 1)
         else:
@@ -143,7 +142,7 @@ class MyGit:
 
 
 if __name__ == '__main__':
-    obj = MyGit(19.1)
+    obj = MyGit()
     obj.get_player(golfid='900828-008')
     h1=obj.calc_bruttoscore_hcp('orust', 92)
-    h2=obj.calc_stableford_hcp('orust', 36)
+    h2=obj.calc_stableford_hcp('orust', 19.1, 36)

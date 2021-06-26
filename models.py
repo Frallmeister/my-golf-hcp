@@ -17,7 +17,7 @@ class Round(Base):
     player_id = Column(Integer, ForeignKey('player.id'))
 
     def __repr__(self):
-        return f"Shots(course={self.course}, hcp={self.hcp}, id={self.id})"
+        return f"Round(course={self.course}, hcp={self.hcp}, id={self.id})"
 
 
 class Player(Base):
@@ -28,4 +28,7 @@ class Player(Base):
     lastname = Column(String)
     golfid = Column(String, nullable=False, unique=True)
     hcp = Column(Float)
-    rounds = relationship('Round', backref='player')
+    golfrounds = relationship('Round', backref='player')
+
+    def __repr__(self):
+        return f"Player(firstname={self.firstname}, lastname={self.lastname}, golfid={self.golfid}, hcp={self.hcp}"
