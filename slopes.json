@@ -1,6 +1,7 @@
 {
     "orust": {
         "par": 72,
+        "holes_par": [5, 4, 4, 4, 3, 4, 3, 5, 4, 3, 5, 4, 3, 4, 3, 5, 5, 4],
         "course_rating": 71.0,
         "slope_rating": 123,
         "slope_yellow": {

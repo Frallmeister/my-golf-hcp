@@ -68,23 +68,54 @@ class MyGit:
         return None
 
     
-    def calc_bruttoscore_hcp(self, course, score, pcc=0):
+    def calc_bruttoscore_hcp(self, course, shots, pcc=0):
         """
         Calculate handicap result from a round with brutto score
+        course: [string]
+        shots: [dict]
+        pcc: [int]
         """
         info = self.get_course_info(course)
-        return round(113/info['slope_rating'] * (score - info['course_rating'] - pcc), 1)
+        n_holes = len(shots)
+        
+        # Calculate brutto score
+        bruttoscore = sum(shots.values())
+        holes_par = info['holes_par']
+        # Add par for holes not played to brutto score
+        bruttoscore += sum([holes_par[i] for i in range(len(holes_par)) if i+1 not in shots.keys()])
+
+        if n_holes < 9:
+            log.error("Logging fewer than 9 holes is not allowed")
+            return None
+        elif n_holes < 14:
+            bruttoscore += 1
+        return min(54, round(113/info['slope_rating'] * (bruttoscore - info['course_rating'] - pcc), 1))
 
     
-    def calc_stableford_hcp(self, course, hcp, points, pcc=0, tee='yellow'):
+    def calc_stableford_hcp(self, course, hcp, points, holes, pcc=0, tee='yellow'):
         """
         Poängbogey in swedish.
         Calculate handicatp result from a round with stableford score.
+        course: [string]
+        hcp: [float]
+        points: [int]
+        holes: [int]
+        pcc: [int]
+        tee: [string]
         """
         info = self.get_course_info(course)
         shcp = self.find_shcp(course, hcp, tee=tee)
+
+        # Add points for holes not played
+        points += 2*(len(info['holes_par']) - holes)
+        if holes < 9:
+            log.error("Logging fewer than 9 holes is not allowed")
+            return None
+        elif holes < 14:
+            points -= 1
+            
         if shcp:
-            return round(113/info['slope_rating'] * (info['par'] + shcp - (points - 36) - info['course_rating'] - pcc), 1)
+            return min(54, round(113/info['slope_rating'] * (info['par'] + shcp - (points - 36) - info['course_rating'] - pcc), 1))
         else:
             return None
 
@@ -131,26 +162,51 @@ class MyGit:
                 return None
 
 
+    def cap(self):
+        pass
+
+
     @playerselected
-    def log_round(self, course, game_type, holes, date=None, points=None, shots=None, tee='yellow', pcc=0):
+    def log_round(self, course, game_type, holes=None, date=None, points=None, shots=None, tee='yellow', pcc=0):
         """
-        1. Calculate hcp result
-        2. Add round with hcp result to database
-        3. Update hcp
+        course [string]
+        game_type [string]: (bruttoscore, stableford)
+        holes [int]
+        date [datetime.date]
+        points [int]
+        shots [int, dict]
+        tee [string]
+        pcc [int]
         """
         current_hcp = self.player.hcp
         player_id = self.player.id
 
-        # Calculate the handicap to add
+        # Calculate handicap result from the round
         if game_type == "bruttoscore":
-            if shots is None:
-                raise Exception("shots can not be None for game_type=bruttoscore")
-            round_hcp_result = self.calc_bruttoscore_hcp(course=course, score=shots, pcc=pcc)
+            if isinstance(shots, dict) != True:
+                raise Exception("shots must be a dict type for game_type=bruttoscore")
+            round_hcp_result = self.calc_bruttoscore_hcp(course=course, shots=shots, pcc=pcc)
+            holes = len(shots)
+            shots = sum(shots.values())
+
         elif game_type == "stableford":
             if points is None:
-                raise Exception("points can not be None for game_type=stableford")
-            round_hcp_result = self.calc_stableford_hcp(course=course, hcp=current_hcp, points=points, pcc=pcc, tee=tee)
+                raise Exception("points must be an integer when game_type=stableford, received points=None")
+            if isinstance(shots, dict):
+                holes = len(shots)
+                shots = sum(shots.values())
+            elif isinstance(holes, int) != True:
+                raise Exception(f"holes must be an integer if shots is not a dict, received {type(holes).__name__}")
+
+            round_hcp_result = self.calc_stableford_hcp(course=course, hcp=current_hcp, points=points, holes=holes, pcc=pcc, tee=tee)
+        else:
+            raise Exception("Unexpected game_type provided")
         
+        # In case None was returned in round_hcp_result
+        if round_hcp_result is None:
+            log.error("Round hcp could not be calculated")
+            return None
+
         # Create a dictionary with data to insert in the db
         round_data = dict(
             course = course,
@@ -176,5 +232,4 @@ class MyGit:
 if __name__ == '__main__':
     obj = MyGit()
     obj.get_player(golfid='900828-008')
-    h1=obj.calc_bruttoscore_hcp('orust', 92)
-    h2=obj.calc_stableford_hcp('orust', 19.1, 36)
+    h2=obj.calc_stableford_hcp('orust', hcp=19.1, points=36, holes=10)
