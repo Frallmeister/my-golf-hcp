@@ -10,10 +10,10 @@ class Round(Base):
     id = Column(Integer, primary_key=True)
     course = Column(String, nullable=False)
     hcp = Column(Float, nullable=False)
-    points = Column(Integer, nullable=True)
-    shots = Column(Integer, nullable=False)
     holes = Column(Integer, nullable=False)
     date = Column(Date, default=datetime.datetime.utcnow().date)
+    points = Column(Integer, nullable=True)
+    shots = Column(Integer, nullable=True)
     player_id = Column(Integer, ForeignKey('player.id'))
 
     def __repr__(self):
@@ -28,7 +28,7 @@ class Player(Base):
     lastname = Column(String)
     golfid = Column(String, nullable=False, unique=True)
     hcp = Column(Float)
-    golfrounds = relationship('Round', backref='player')
+    golfrounds = relationship('Round', cascade="all,delete", backref='player')
 
     def __repr__(self):
         return f"Player(firstname={self.firstname}, lastname={self.lastname}, golfid={self.golfid}, hcp={self.hcp}"

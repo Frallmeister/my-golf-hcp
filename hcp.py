@@ -106,7 +106,7 @@ class MyGit:
 
     
     @staticmethod
-    def add_player(firstname, lastname, hcp, golfid):
+    def create_player(firstname, lastname, hcp, golfid):
         new_player = Player(firstname=firstname, lastname=lastname, hcp=hcp, golfid=golfid)
         with Session(engine) as session:
             session.add(new_player)
@@ -132,13 +132,45 @@ class MyGit:
 
 
     @playerselected
-    def log_round(self, game_type, score, tee):
+    def log_round(self, course, game_type, holes, date=None, points=None, shots=None, tee='yellow', pcc=0):
         """
         1. Calculate hcp result
         2. Add round with hcp result to database
         3. Update hcp
         """
-        pass
+        current_hcp = self.player.hcp
+        player_id = self.player.id
+
+        # Calculate the handicap to add
+        if game_type == "bruttoscore":
+            if shots is None:
+                raise Exception("shots can not be None for game_type=bruttoscore")
+            round_hcp_result = self.calc_bruttoscore_hcp(course=course, score=shots, pcc=pcc)
+        elif game_type == "stableford":
+            if points is None:
+                raise Exception("points can not be None for game_type=stableford")
+            round_hcp_result = self.calc_stableford_hcp(course=course, hcp=current_hcp, points=points, pcc=pcc, tee=tee)
+        
+        # Create a dictionary with data to insert in the db
+        round_data = dict(
+            course = course,
+            holes = holes,
+            player_id = player_id,
+            hcp = round_hcp_result,
+        )
+
+        # Add kwargs that are not None to the Round entry
+        kwargs = {'date': date, 'points': points, 'shots': shots}
+        optional_cols = {k: v for k, v in kwargs.items() if v is not None}
+        round_data.update(optional_cols)
+
+        # Insert a new round in the database
+        new_round = Round(**round_data)
+        with Session(engine) as session:
+            session.add(new_round)
+            session.commit()
+            log.info(f"Successfully added new round, {new_round}")
+
 
 
 if __name__ == '__main__':

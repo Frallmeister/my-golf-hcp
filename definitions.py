@@ -4,11 +4,11 @@ BASE_DIR = Path(__file__).resolve().parent
 
 
 def playerselected(func):
-    def wrapper(self):
+    def wrapper(self, *args, **kwargs):
         if self.player is None:
             print(f"A player must be selected to run method '{func.__name__}()'")
             return None
         else:
-            func(self)
+            func(self, *args, **kwargs)
 
     return wrapper
