@@ -1,7 +1,7 @@
 import sys
 import logging
 
-formatter = logging.Formatter("%(levelname)s: %(asctime)s: %(name)s: %(message)s")
+formatter = logging.Formatter("%(levelname)s: %(asctime)s: %(filename)s: %(lineno)d: %(message)s")
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
 

@@ -1,23 +1,12 @@
 import json
 from logger import log
-from definitions import BASE_DIR
+from definitions import BASE_DIR, playerselected
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from models import Round, Player, Base
 
-engine = create_engine('sqlite:///golfrounds.db', echo=True)
+engine = create_engine('sqlite:///golfrounds.db', echo=False)
 Base.metadata.create_all(engine)
-
-
-
-
-"""
-Create @playerselected decorator to check if self.player is None before allowing functions to run.
-"""
-
-
-
-
 
 
 class MyGit:
@@ -44,7 +33,7 @@ class MyGit:
 
 
     @staticmethod
-    def get_course_info(self, course):
+    def get_course_info(course):
         with open(BASE_DIR / "slopes.json") as f:
             info = json.load(f)
         
@@ -64,10 +53,6 @@ class MyGit:
         if self.hcp is None:
             log.error("Class instance hcp is None")
             return None
-
-        # Load slope table
-        with open(BASE_DIR / "slopes.json") as f:
-            slopes = json.load(f)
 
         try:
             course_info = self.get_course_info(course)
@@ -105,7 +90,7 @@ class MyGit:
             return None
 
 
-    # @playerselected
+    @playerselected
     def get_hcp(self):
         """
         Reads all rounds from the database and calculates the current exact handicap
@@ -113,7 +98,7 @@ class MyGit:
         pass
 
 
-    # @playerselected
+    @playerselected
     def update_hcp(self):
         """
         Fetches the current hcp from get_hcp() and updates the player hcp in the db
@@ -147,7 +132,7 @@ class MyGit:
                 return None
 
 
-    # @playerselected
+    @playerselected
     def log_round(self, game_type, score, tee):
         """
         1. Calculate hcp result
@@ -155,3 +140,8 @@ class MyGit:
         3. Update hcp
         """
         pass
+
+
+if __name__ == '__main__':
+    obj = MyGit(19.1)
+    obj.update_hcp()
