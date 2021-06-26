@@ -26,6 +26,6 @@ class Player(Base):
     id = Column(Integer, primary_key=True)
     firstname = Column(String)
     lastname = Column(String)
-    golfid = Column(String, nullable=False)
+    golfid = Column(String, nullable=False, unique=True)
     hcp = Column(Float)
     rounds = relationship('Round', backref='player')

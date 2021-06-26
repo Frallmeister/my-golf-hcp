@@ -74,10 +74,10 @@ class MyGit:
         Calculate handicap result from a round with brutto score
         """
         info = self.get_course_info(course)
-        return 113/info['slope_rating'] * (score, - info['course_rating'] - pcc)
+        return round(113/info['slope_rating'] * (score - info['course_rating'] - pcc), 1)
 
     
-    def calc_stableford_hcp(self, course, points, pcc=0, tee='yelllow'):
+    def calc_stableford_hcp(self, course, points, pcc=0, tee='yellow'):
         """
         Poängbogey in swedish.
         Calculate handicatp result from a round with stableford score.
@@ -85,7 +85,7 @@ class MyGit:
         info = self.get_course_info(course)
         shcp = self.find_shcp(course, tee=tee)
         if shcp:
-            return 113/info['slope_rating'] * (info['par'] + shcp - (points - 36) - info['course_rating'] - pcc)
+            return round(113/info['slope_rating'] * (info['par'] + shcp - (points - 36) - info['course_rating'] - pcc), 1)
         else:
             return None
 
@@ -103,7 +103,7 @@ class MyGit:
         """
         Fetches the current hcp from get_hcp() and updates the player hcp in the db
         """
-        pass
+        print("SUCCESS")
 
     
     @staticmethod
@@ -144,4 +144,6 @@ class MyGit:
 
 if __name__ == '__main__':
     obj = MyGit(19.1)
-    obj.update_hcp()
+    obj.get_player(golfid='900828-008')
+    h1=obj.calc_bruttoscore_hcp('orust', 92)
+    h2=obj.calc_stableford_hcp('orust', 36)
