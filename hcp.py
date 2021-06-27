@@ -1,8 +1,10 @@
 import json
+import datetime
 from logger import log
 from definitions import BASE_DIR, playerselected
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
+import numpy as np
 from models import Round, Player, Base
 
 engine = create_engine('sqlite:///golfrounds.db', echo=False)
@@ -121,19 +123,114 @@ class MyGit:
 
 
     @playerselected
-    def get_hcp(self):
+    def get_exact_hcp(self):
         """
         Reads all rounds from the database and calculates the current exact handicap
+        Both Cap and Exceptional score is applied.
+
+        None will be returned if no rounds are logged.
+
+        Returns:
+            exact_hcp: The new exact hcp with cap and exceptional score applied.
+            cap_status: (str: inactive, soft, hard) Describes the applied cap
+            exceptional_score: (int: 0, -1, -2) Describes the applied exceptional score 
         """
-        pass
+        cap_status = None
+        with Session(engine) as session:
+            played_rounds = session.query(Round).order_by(Round.id.desc()).limit(20).all()
+        
+        if not played_rounds:
+            log.warning("No registred rounds")
+            return None
+
+        n_rounds = len(played_rounds)
+        results = sorted([r.hcp for r in played_rounds])
+
+        # Apply exceptional score
+        last_result = played_rounds[-1].hcp
+        if last_result <= self.player.hcp - 10.0:
+            exceptional_score = -2
+        elif last_result <= self.player.hcp - 7.0:
+            exceptional_score = -1
+        else:
+            exceptional_score = 0
+        results = [r + exceptional_score for r in results]
+
+        # Calculate exact hcp from hcp table
+        if n_rounds <= 3:
+            exact_hcp = min(results) - 2
+        elif n_rounds == 4:
+            exact_hcp = min(results) - 1
+        elif n_rounds == 5:
+            exact_hcp = min(results)
+        elif n_rounds == 6:
+            exact_hcp = round(np.mean(results[:2]) - 1, 1)
+        elif n_rounds <= 8:
+            exact_hcp = round(np.mean(results[:2]), 1)
+        elif n_rounds <= 11:
+            exact_hcp = round(np.mean(results[:3]), 1)
+        elif n_rounds <= 14:
+            exact_hcp = round(np.mean(results[:4]), 1)
+        elif n_rounds <= 16:
+            exact_hcp = round(np.mean(results[:5]), 1)
+        elif n_rounds <= 18:
+            exact_hcp = round(np.mean(results[:6]), 1)
+        elif n_rounds <= 19:
+            exact_hcp = round(np.mean(results[:7]), 1)
+        elif n_rounds == 20:
+            exact_hcp = round(np.mean(results[:8]), 1)
+            # Run cap function
+            exact_hcp, cap_status = self.cap(exact_hcp, self.player.hcp)
+
+        return (exact_hcp, cap_status, exceptional_score)
+
+
+    @staticmethod
+    def cap(new_hcp, current_hcp):
+        """
+        Takes a new hcp and the current hcp and calculates a cap of the new hcp.
+        Returns:
+            capped_hcp: [float] The calculated hcp.
+            cap_status: [str: soft, hard] The type of cap that is applied if any. Return None in case of no change.
+        """
+        with Session(engine) as session:
+            rounds = session.query(Round).order_by(Round.date.desc()).limit(20).all()
+
+        # Cap can only be enabled when more than 20 rounds have been registred
+        n_rounds = len(rounds)
+        assert(n_rounds >= 20, f"At least 20 rounds are required to enable cap. Only {n_rounds} are registred.")
+
+        latest_date = rounds[-1].date
+        dt = datetime.timedelta(days=365)
+        start_date = latest_date - dt
+        lowest_hcp = min([r.hcp_exact for r in rounds if r.date > start_date])
+
+        if new_hcp <= lowest_hcp + 3.0:
+            return new_hcp, None
+
+        hcp_add = 3.0 + (new_hcp - (lowest_hcp + 3.0))/2
+        hcp_add = round(hcp_add, 1)
+
+        cap_status = 'hard' if hcp_add > 7 else 'soft'
+        capped_hcp = current_hcp + min(hcp_add, 7.0)
+        return capped_hcp, cap_status
 
 
     @playerselected
     def update_hcp(self):
         """
         Fetches the current hcp from get_hcp() and updates the player hcp in the db
+
         """
-        print("SUCCESS")
+        rounds = get_exact_hcp()
+        if rounds is None:
+            return None
+        else:
+            exact_hcp, cap_status, exceptional_score = self.get_exact_hcp()
+
+
+        with Session(engine) as session:
+            pass
 
     
     @staticmethod
@@ -156,14 +253,10 @@ class MyGit:
         with Session(engine) as session:
             player = session.query(Player).filter_by(**kwargs).first()
             if player:
-                self.hcp = player.hcp
+                log.info(f"Assigned player to instance {player}")
                 self.player = player
             else:
                 return None
-
-
-    def cap(self):
-        pass
 
 
     @playerselected
@@ -227,9 +320,12 @@ class MyGit:
             session.commit()
             log.info(f"Successfully added new round, {new_round}")
 
+        # Update exact hcp for the player
+        self.update_hcp()
 
 
 if __name__ == '__main__':
     obj = MyGit()
     obj.get_player(golfid='900828-008')
-    h2=obj.calc_stableford_hcp('orust', hcp=19.1, points=36, holes=10)
+    exact_hcp = obj.get_exact_hcp()
+    print(exact_hcp)
