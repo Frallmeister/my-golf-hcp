@@ -3,7 +3,7 @@ import logging
 
 formatter = logging.Formatter("%(levelname)s: %(asctime)s: %(filename)s: %(lineno)d: %(message)s")
 log = logging.getLogger(__name__)
-log.setLevel(logging.INFO)
+log.setLevel(logging.DEBUG)
 
 filehandler = logging.FileHandler("logfile.log")
 filehandler.setFormatter(formatter)
