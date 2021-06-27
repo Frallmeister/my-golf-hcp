@@ -9,6 +9,6 @@ def playerselected(func):
             print(f"A player must be selected to run method '{func.__name__}()'")
             return None
         else:
-            func(self, *args, **kwargs)
+            return func(self, *args, **kwargs)
 
     return wrapper
