@@ -5,7 +5,7 @@ from definitions import BASE_DIR, playerselected
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 import numpy as np
-from models import Round, Player, Base
+from models import Round, Player, Handicap, Base
 
 engine = create_engine('sqlite:///golfrounds.db', echo=False)
 Base.metadata.create_all(engine)
@@ -107,6 +107,7 @@ class MyGit:
         """
         info = self.get_course_info(course)
         shcp = self.find_shcp(course, hcp, tee=tee)
+        log.debug(f"shcp = {shcp}")
 
         # Add points for holes not played
         points += 2*(len(info['holes_par']) - holes)
@@ -116,7 +117,7 @@ class MyGit:
         elif holes < 14:
             points -= 1
             
-        if shcp:
+        if shcp is not None:
             return min(54, round(113/info['slope_rating'] * (info['par'] + shcp - (points - 36) - info['course_rating'] - pcc), 1))
         else:
             return None
@@ -144,10 +145,10 @@ class MyGit:
             return None
 
         n_rounds = len(played_rounds)
-        results = sorted([r.hcp for r in played_rounds])
+        results = sorted([r.hcp_result for r in played_rounds])
 
         # Apply exceptional score
-        last_result = played_rounds[-1].hcp
+        last_result = played_rounds[-1].hcp_result
         if last_result <= self.player.hcp - 10.0:
             exceptional_score = -2
         elif last_result <= self.player.hcp - 7.0:
@@ -158,11 +159,11 @@ class MyGit:
 
         # Calculate exact hcp from hcp table
         if n_rounds <= 3:
-            exact_hcp = min(results) - 2
+            exact_hcp = round(min(results) - 2, 1)
         elif n_rounds == 4:
-            exact_hcp = min(results) - 1
+            exact_hcp = round(min(results) - 1, 1)
         elif n_rounds == 5:
-            exact_hcp = min(results)
+            exact_hcp = round(min(results), 1)
         elif n_rounds == 6:
             exact_hcp = round(np.mean(results[:2]) - 1, 1)
         elif n_rounds <= 8:
@@ -180,57 +181,79 @@ class MyGit:
         elif n_rounds == 20:
             exact_hcp = round(np.mean(results[:8]), 1)
             # Run cap function
-            exact_hcp, cap_status = self.cap(exact_hcp, self.player.hcp)
+            log.debug(f"exact_hcp before cap = {exact_hcp}")
+            exact_hcp, cap_status = self.cap_hcp(exact_hcp, self.player.hcp)
+            log.debug(f"exact_hcp after cap = {exact_hcp}")
 
         return (exact_hcp, cap_status, exceptional_score)
 
 
     @staticmethod
-    def cap(new_hcp, current_hcp):
+    def cap_hcp(new_hcp, current_hcp):
         """
         Takes a new hcp and the current hcp and calculates a cap of the new hcp.
         Returns:
             capped_hcp: [float] The calculated hcp.
             cap_status: [str: soft, hard] The type of cap that is applied if any. Return None in case of no change.
         """
+
+        # Get rounds and the lowest exact handicap last 12 months
         with Session(engine) as session:
-            rounds = session.query(Round).order_by(Round.date.desc()).limit(20).all()
+            rounds = session.query(Round).order_by(Round.date.desc()).all()
+
+            latest_date = rounds[-1].date
+            dt = datetime.timedelta(days=365)
+            start_date = latest_date - dt
+            lowest_hcp = min([r.handicap[0].hcp_exact for r in rounds[1:] if r.date > start_date])
 
         # Cap can only be enabled when more than 20 rounds have been registred
         n_rounds = len(rounds)
-        assert(n_rounds >= 20, f"At least 20 rounds are required to enable cap. Only {n_rounds} are registred.")
-
-        latest_date = rounds[-1].date
-        dt = datetime.timedelta(days=365)
-        start_date = latest_date - dt
-        lowest_hcp = min([r.hcp_exact for r in rounds if r.date > start_date])
+        if n_rounds < 20:
+            log.warning("Calling cap() with fewer than 20 rounds")
+            raise Exception(f"At least 20 rounds are required to enable cap. Only {n_rounds} are registred.")
 
         if new_hcp <= lowest_hcp + 3.0:
             return new_hcp, None
 
+        log.info(f"Capping hcp {new_hcp} from lowest exact hcp {lowest_hcp} when current hcp is {current_hcp}")
+
         hcp_add = 3.0 + (new_hcp - (lowest_hcp + 3.0))/2
-        hcp_add = round(hcp_add, 1)
+        # hcp_add = round(hcp_add, 1)
 
         cap_status = 'hard' if hcp_add > 7 else 'soft'
-        capped_hcp = current_hcp + min(hcp_add, 7.0)
+        capped_hcp = round(lowest_hcp + min(hcp_add, 7.0), 1)
+        log.debug(f"Obtained new capped hcp {capped_hcp}, cap_status={cap_status}")
         return capped_hcp, cap_status
 
 
     @playerselected
     def update_hcp(self):
         """
-        Fetches the current hcp from get_hcp() and updates the player hcp in the db
-
+        Update players exact hcp,
+        Update players cap status,
+        Insert Handicap record
         """
-        rounds = get_exact_hcp()
-        if rounds is None:
+        player_id = self.player.id
+        temp = self.get_exact_hcp()
+        if temp is None:
             return None
         else:
-            exact_hcp, cap_status, exceptional_score = self.get_exact_hcp()
+            exact_hcp, cap_status, exceptional_score = temp
 
+        log.debug(f"Calculated new exact hcp {exact_hcp}")
 
+        # Insert handicap record and update player exact hcp
         with Session(engine) as session:
-            pass
+            rounds = session.query(Round).order_by(Round.date.desc()).limit(20).all()
+            handicap = Handicap(hcp_exact=exact_hcp, exceptional_adjust=exceptional_score, round_id=rounds[0].id)
+            self.player.hcp = exact_hcp
+            
+            session.add(handicap)
+            session.add(self.player)
+            session.commit()
+            log.info(f"Inserted {handicap} to database and updated {self.player} with hcp={exact_hcp}")
+            
+        self.get_player(id=player_id)
 
     
     @staticmethod
@@ -293,7 +316,7 @@ class MyGit:
 
             round_hcp_result = self.calc_stableford_hcp(course=course, hcp=current_hcp, points=points, holes=holes, pcc=pcc, tee=tee)
         else:
-            raise Exception("Unexpected game_type provided")
+            raise Exception(f"Unexpected game_type provided. Received '{game_type}'")
         
         # In case None was returned in round_hcp_result
         if round_hcp_result is None:
@@ -304,8 +327,8 @@ class MyGit:
         round_data = dict(
             course = course,
             holes = holes,
-            player_id = player_id,
-            hcp = round_hcp_result,
+            hcp_result = round_hcp_result,
+            player_id = player_id
         )
 
         # Add kwargs that are not None to the Round entry
@@ -328,4 +351,5 @@ if __name__ == '__main__':
     obj = MyGit()
     obj.get_player(golfid='900828-008')
     exact_hcp = obj.get_exact_hcp()
-    print(exact_hcp)
+    import random
+    # obj.log_round("orust", "stableford", holes=18, points=random.randint(33, 38))
