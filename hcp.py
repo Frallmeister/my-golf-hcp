@@ -201,7 +201,7 @@ class MyGit:
         with Session(engine) as session:
             rounds = session.query(Round).order_by(Round.date.desc()).all()
 
-            latest_date = rounds[-1].date
+            latest_date = rounds[0].date
             dt = datetime.timedelta(days=365)
             start_date = latest_date - dt
             lowest_hcp = min([r.handicap[0].hcp_exact for r in rounds[1:] if r.date > start_date])
