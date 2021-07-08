@@ -1,5 +1,5 @@
 import datetime
-from sqlalchemy import Column, Integer, Enum, DateTime, Float, String, ForeignKey
+from sqlalchemy import Column, Integer, Enum, DateTime, Float, String, ForeignKey, Boolean
 from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
@@ -14,6 +14,7 @@ class Round(Base):
     points = Column(Integer, nullable=True)
     shots = Column(Integer, nullable=True)
     hcp_result = Column(Float, nullable=False)
+    transition = Column(Boolean, nullable=False, default=False)
     player_id = Column(Integer, ForeignKey('player.id'))
     handicap = relationship('Handicap', cascade="all,delete", backref='player')
 
@@ -30,7 +31,7 @@ class Handicap(Base):
     round_id = Column(Integer, ForeignKey("golfround.id"))
 
     def __repr__(self):
-        return f"<Round id: {self.round_id}, Handicap(hcp_exact={self.hcp_exact}, id={self.id})>"
+        return f"Handicap(hcp_exact={self.hcp_exact}, round_id={self.round_id}, id={self.id})"
 
 
 class Player(Base):

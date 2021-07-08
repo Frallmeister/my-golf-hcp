@@ -138,11 +138,16 @@ class MyGit:
         """
         cap_status = None
         with Session(engine) as session:
-            played_rounds = session.query(Round).order_by(Round.id.desc()).limit(20).all()
+            player = session.query(Player).filter_by(id=self.player.id).first()
+            played_rounds = player.golfround
         
         if not played_rounds:
             log.warning("No registred rounds")
             return None
+
+        # Get the latest 20 rounds
+        played_rounds.sort(key=lambda x: x.date)
+        played_rounds = played_rounds[:20]
 
         n_rounds = len(played_rounds)
         results = sorted([r.hcp_result for r in played_rounds])
@@ -262,8 +267,24 @@ class MyGit:
         with Session(engine) as session:
             session.add(new_player)
             session.commit()
+            log.info(f"Created: {new_player}")
 
-    
+
+    def list_players(self):
+        with Session(engine) as session:
+            players = session.query(Player).all()
+        return players
+
+
+    def delete_player(self, **kwargs):
+        with Session(engine) as session:
+            players = session.query(Player).filter_by(**kwargs).all()
+            for player in players:
+                session.delete(player)
+                session.commit()
+                log.info(f"Deleted: {player}")
+
+
     def get_player(self, **kwargs):
         """
         Allowed kwargs:
@@ -283,7 +304,7 @@ class MyGit:
 
 
     @playerselected
-    def log_round(self, course, game_type, holes=None, date=None, points=None, shots=None, tee='yellow', pcc=0):
+    def log_round(self, course, game_type, holes=None, date=None, points=None, shots=None, tee='yellow', pcc=0, transition=False):
         """
         course [string]
         game_type [string]: (bruttoscore, stableford)
@@ -328,7 +349,8 @@ class MyGit:
             course = course,
             holes = holes,
             hcp_result = round_hcp_result,
-            player_id = player_id
+            player_id = player_id,
+            transition=transition,
         )
 
         # Add kwargs that are not None to the Round entry
@@ -342,6 +364,14 @@ class MyGit:
             session.add(new_round)
             session.commit()
             log.info(f"Successfully added new round, {new_round}")
+
+            # Remove transition round if 20 rounds are logged
+            all_rounds = session.query(Round).all()
+            transition_rounds = [r for r in all_rounds if r.transition is True]
+            if len(all_rounds) == 21 and transition_rounds:
+                for transition_round in transition_rounds:
+                    session.delete(transition_round)
+                session.commit()
 
         # Update exact hcp for the player
         self.update_hcp()
